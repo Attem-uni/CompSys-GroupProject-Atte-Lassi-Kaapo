@@ -13,6 +13,14 @@
 #define DEFAULT_STACK_SIZE 2048
 #define CDC_ITF_TX      1
 
+// Code by Kaapo
+// ======================
+
+char Morsecode[128]; // Defining the morse code string
+uint8_t Morseindexcount = 0; // Defining the index number for the morse code string
+
+// ======================
+
 //Nämä on global variables, pitää varmaan lisätä vielä jotaki
 QueueHandle_t output_buffer;
 //Yllä oleva täältä
@@ -60,11 +68,52 @@ void imuTask(void *p){
     vTaskDelay(pdMS_TO_TICKS(1000));
 }
 
-void buttonTask(void *p){
-    /*
-    TBD
-    */
+// Code by Kaapo
+// ======================
+
+void buttonTask(void *arg){
+    (void)arg;
+
+    bool LastButtonstate1 = false; // Define the last button state for button 1
+    bool LastButtonstate2 = false; // Define the last button state for button 2
+
+    // Creating for loop to loop infinitely to read button presses
+    for(;;){
+        bool Button1 = (gpio_get(SW1_PIN) == 0); // Reading button state of Button1 where 0 means button is pressed and 1 means not pressed
+        bool Button2 = (gpio_get(SW2_PIN) == 0); // Reading button state of Button2 where 0 means button is pressed and 1 means not pressed
+
+
+        // If statement to add dot or dash to string Morsecode
+        if (Button1 && !LastButtonstate1) {
+            Morsecode[Morseindexcount++] = morse; // If button 1 is pressed it adds dot or dash to the string Morsecode and updates the Morseindexcount
+            Morsecode[Morseindexcount] = '\0'; // Adds \0 to the end of the string
+        }
+        LastButtonstate1 = Button1; // Sets the Lastbuttonstate to the state of button 1
+
+        if (Button2 && !LastButtonstate2) {
+            Morsecode[Morseindexcount++] = ' '; // If button 2 is pressed it adds a space to the string Morsecode and updates the Morseindexcount
+            Morsecode[Morseindexcount] = '\0'; // Adds \0 to the end of the string
+
+            int length = Morseindexcount;
+
+            // if statement made to print the morsecode if the last 3 characters are a space (button 2 pressed 3 times in a row)
+            if (length >= 3 &&
+                Morsecode[length-1] == ' ' && // Checking the last character is a space
+                Morsecode[length-2] == ' ' && // Checking if the second to last character is a space
+                Morsecode[length-3] == ' '){  // Checking if the third to last character is a space
+                
+                printf("%s\n", Morsecode);
+
+                // Clearing Morseindexcount and Morsecode after the string has been printed
+                Morseindexcount = 0; 
+                Morsecode[0] = '\0';
+                }
+        } 
+        LastButtonstate2 = Button2; // Sets the Lastbuttonstate to the state of button 2
+    }
 }
+
+// ======================
 
 //Otettu kurssin reposta
 static void usbTask(void *arg) {
