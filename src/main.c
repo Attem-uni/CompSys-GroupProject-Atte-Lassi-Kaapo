@@ -55,17 +55,18 @@ void imuTask(void *p){
 
     while(1){
         ICM42670_read_sensor_data (&ax, &ay, &az, NULL, NULL, NULL, NULL);
-
-        if(az > 0.7f){
+        //checks the acceleration on the z-axis
+        if(az > 0.8f){
             morse = '.';
         }
-        else if(ax > 0.7f || ax < -0.7f){
+        //checks the acceleration on the x-axis or y-axis
+        else if(ax > 0.8f || ax < -0.8f){
             morse = '-';
         }
 
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    vTaskDelay(pdMS_TO_TICKS(1000));
 }
 
 // Code by Kaapo
@@ -137,13 +138,41 @@ int main(void) {
     init_ICM42670();                        // IMU WHO_AM_I + basic setup
     ICM42670_startAccel(100, 4);            // 100 Hz, ±4 g
 
-    init_button1;
-    init_button2;
+    init_button1();
+    init_button2();
     output_buffer = xQueueCreate(32, sizeof(char));
 
     /*
     Täällä ne pitäs sitte luoda ne taskit xTaskCreate
     */
+    xTaskCreate(
+        imuTask,
+        "IMU TASK",
+        1024
+        NULL,
+        1,
+        NULL
+    );
+
+    xTaskCreate(
+        buttonTask,
+        "Button Task",
+        2048,
+        NULL,
+        1,
+        NULL
+    );
+
+    xTaskCreate(
+        usbTask,
+        "USB Task",
+        1024,
+        NULL,
+        2,                       
+        NULL
+    );
+
+    vTaskStartScheduler();
 
 }
 
