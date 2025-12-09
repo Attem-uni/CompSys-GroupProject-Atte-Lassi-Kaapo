@@ -48,7 +48,6 @@ void init_button2(){
     return init_sw2();
 }
 
-
 void imuTask(void *p){
 
     float ax, ay, az;
@@ -69,7 +68,7 @@ void imuTask(void *p){
 
 }
 
-// Code by Kaapo
+// Code by Kaapo, modifications by Atte
 // ======================
 
 void buttonTask(void *arg){
@@ -77,6 +76,8 @@ void buttonTask(void *arg){
 
     bool LastButtonstate1 = false; // Define the last button state for button 1
     bool LastButtonstate2 = false; // Define the last button state for button 2
+
+    int btn2Count = 0; // counter for consecutive times button 2 has been pressed
 
     // Creating for loop to loop infinitely to read button presses
     for(;;){
@@ -86,29 +87,23 @@ void buttonTask(void *arg){
 
         // If statement to add dot or dash to string Morsecode
         if (Button1 && !LastButtonstate1) {
-            Morsecode[Morseindexcount++] = morse; // If button 1 is pressed it adds dot or dash to the string Morsecode and updates the Morseindexcount
-            Morsecode[Morseindexcount] = '\0'; // Adds \0 to the end of the string
+            xQueueSend(output_buffer, &morse, 0);   // sends morse to output buffer upon button press
+            btn2Count = 0;                          // press of button 1 sets count to 0
+            vTaskDelay(pdMS_TO_TICKS(20));          // small 20ms delay to avoid button registering too many times
         }
         LastButtonstate1 = Button1; // Sets the Lastbuttonstate to the state of button 1
 
         if (Button2 && !LastButtonstate2) {
-            Morsecode[Morseindexcount++] = ' '; // If button 2 is pressed it adds a space to the string Morsecode and updates the Morseindexcount
-            Morsecode[Morseindexcount] = '\0'; // Adds \0 to the end of the string
-
-            int length = Morseindexcount;
+            char space = ' ';
+            xQueueSend(output_buffer, &space, 0);   // sends a space to output buffer upon button press
+            btn2Count++;                            // press of button 2 adds to counter
+            vTaskDelay(pdMS_TO_TICKS(20));          // small 20ms delay to avoid button registering too many times
 
             // if statement made to print the morsecode if the last 3 characters are a space (button 2 pressed 3 times in a row)
-            if (length >= 3 &&
-                Morsecode[length-1] == ' ' && // Checking the last character is a space
-                Morsecode[length-2] == ' ' && // Checking if the second to last character is a space
-                Morsecode[length-3] == ' '){  // Checking if the third to last character is a space
-                
-                printf("%s\n", Morsecode);
-
-                // Clearing Morseindexcount and Morsecode after the string has been printed
-                Morseindexcount = 0; 
-                Morsecode[0] = '\0';
-                }
+            if (btn2Count >= 3){  // Checking if button 2 has been pressed 3 times in a row
+                char end = '\n';
+                xQueueSend(output_buffer, &end, 0); // send newline to output buffer to indicate end of current string
+                btn2Count = 0;                      // reset button 2 count
         } 
         LastButtonstate2 = Button2; // Sets the Lastbuttonstate to the state of button 2
     }
@@ -125,10 +120,31 @@ static void usbTask(void *arg) {
     }
 }
 
-/*
-Tähän kait vielä esim. usbOutputTask yms. joka lähettää sen viestin
-*/
+// usbOutputTask Code by Atte
 
+void usbOutputTask(void *arg) {
+    (void)arg;
+
+    while (1) {
+
+        char c;
+        xQueueReceive(output_buffer, &c, portMAX_DELAY);    // recieve character from buttontask
+
+        if (c == '\n') {        // ends string if newline detected as char c
+
+            printf("%s\n", Morsecode);              // prints finished morse string on a new line
+            Morseindexcount = 0;                    // reset index count for next message
+            Morsecode[0] = '\0';                    // set first next value in string to '\0' to reset it
+        }
+        else {
+            if (Morseindexcount < sizeof(Morsecode) - 1) {  // avoid adding to string if buffer overflow possible
+
+                Morsecode[Morseindexcount++] = c;           // adds c to morsecode string
+                Morsecode[Morseindexcount] = '\0';          // sets next value in string preemptively to '\0' to avoid issues
+            }
+        }
+    }
+}
 
 int main(void) {
     stdio_init_all();
@@ -142,13 +158,10 @@ int main(void) {
     init_button2();
     output_buffer = xQueueCreate(32, sizeof(char));
 
-    /*
-    Täällä ne pitäs sitte luoda ne taskit xTaskCreate
-    */
     xTaskCreate(
         imuTask,
         "IMU TASK",
-        1024
+        1024,
         NULL,
         1,
         NULL
@@ -166,6 +179,14 @@ int main(void) {
     xTaskCreate(
         usbTask,
         "USB Task",
+        1024,
+        NULL,
+        2,                       
+        NULL
+    );
+    xTaskCreate(
+        usbOutputTask,
+        "USB Output Task",
         1024,
         NULL,
         2,                       
