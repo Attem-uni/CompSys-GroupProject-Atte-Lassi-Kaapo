@@ -91,7 +91,6 @@ void buttonTask(void *arg){
             btn2Count = 0;                          // press of button 1 sets count to 0
             vTaskDelay(pdMS_TO_TICKS(20));          // small 20ms delay to avoid button registering too many times
         }
-        LastButtonstate1 = Button1; // Sets the Lastbuttonstate to the state of button 1
 
         if (Button2 && !LastButtonstate2) {
             char space = ' ';
@@ -104,7 +103,9 @@ void buttonTask(void *arg){
                 char end = '\n';
                 xQueueSend(output_buffer, &end, 0); // send newline to output buffer to indicate end of current string
                 btn2Count = 0;                      // reset button 2 count
-        } 
+            } 
+        }
+        LastButtonstate1 = Button1; // Sets the Lastbuttonstate to the state of button 1
         LastButtonstate2 = Button2; // Sets the Lastbuttonstate to the state of button 2
     }
 }
