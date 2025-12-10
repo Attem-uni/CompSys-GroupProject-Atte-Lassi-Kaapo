@@ -28,25 +28,25 @@ QueueHandle_t output_buffer;
 char morse;
 
 
-void init_sw1() {
+//void init_sw1() {
+//    // Initialize the button pin as an input with a pull-up resistor
+//    gpio_init(SW1_PIN);
+//    gpio_set_dir(SW1_PIN, GPIO_IN);
+//}
+
+//void init_sw2() {
     // Initialize the button pin as an input with a pull-up resistor
-    gpio_init(SW1_PIN);
-    gpio_set_dir(SW1_PIN, GPIO_IN);
-}
+//    gpio_init(SW2_PIN);
+//    gpio_set_dir(SW2_PIN, GPIO_IN);
+//}
 
-void init_sw2() {
-    // Initialize the button pin as an input with a pull-up resistor
-    gpio_init(SW2_PIN);
-    gpio_set_dir(SW2_PIN, GPIO_IN);
-}
+//void init_button1(){
+//    return init_sw1();
+//}
 
-void init_button1(){
-    return init_sw1();
-}
-
-void init_button2(){
-    return init_sw2();
-}
+//void init_button2(){
+//    return init_sw2();
+//}
 
 void imuTask(void *p){
 
@@ -111,16 +111,14 @@ void buttonTask(void *arg){
 }
 
 // ======================
-
 //Otettu kurssin reposta
-static void usbTask(void *arg) {
-    (void)arg;
-    while (1) {
-        tud_task();              // With FreeRTOS wait for events
+//static void usbTask(void *arg) {
+//    (void)arg;
+//    while (1) {
+//        tud_task();              // With FreeRTOS wait for events
                                  // Do not add vTaskDelay. 
-    }
-}
-
+//    }
+//}
 // usbOutputTask Code by Atte
 
 void usbOutputTask(void *arg) {
@@ -177,14 +175,14 @@ int main(void) {
         NULL
     );
 
-    xTaskCreate(
-        usbTask,
-        "USB Task",
-        1024,
-        NULL,
-        2,                       
-        NULL
-    );
+    //xTaskCreate(
+    //    usbTask,
+    //    "USB Task",
+    //    1024,
+    //    NULL,
+    //    2,                       
+    //    NULL
+    //);
     xTaskCreate(
         usbOutputTask,
         "USB Output Task",

@@ -5,10 +5,10 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Define project name (name still wip)
-set(APP_NAME name_here) 
+# Define project name
+set(APP_NAME morseproject) 
 # Define main app (app in this folder)
-set(MAIN_TARGET name_here)
+set(MAIN_TARGET morse_to_pico)
 
 # == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work =======
 if(WIN32)
@@ -26,6 +26,7 @@ endif()
 # ================================================================================================
 
 # == DO NOT EDIT:  SETUP pico SDK and create project ==============================================
+
 set(PICO_BOARD pico_w CACHE STRING "Board type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
