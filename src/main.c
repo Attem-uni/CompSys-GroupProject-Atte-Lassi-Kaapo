@@ -22,10 +22,9 @@ uint8_t Morseindexcount = 0; // Defining the index number for the morse code str
 // ======================
 
 //Nämä on global variables, pitää varmaan lisätä vielä jotaki
-QueueHandle_t output_buffer;
+QueueHandle_t output_buffer, morse_buffer;
 //Yllä oleva täältä
 //https://www.freertos.org/Documentation/02-Kernel/04-API-references/06-Queues/01-xQueueCreate
-char morse;
 
 
 //void init_sw1() {
@@ -50,20 +49,25 @@ char morse;
 
 void imuTask(void *p){
 
-    float ax, ay, az;
+    float gx;
+    char morse = 0;
 
     while(1){
-        ICM42670_read_sensor_data (&ax, &ay, &az, NULL, NULL, NULL, NULL);
+        ICM42670_read_sensor_data (NULL, NULL, NULL, &gx, NULL, NULL, NULL);
         //checks the acceleration on the z-axis
-        if(az > 0.8f){
+        if(gx > 0.8f){
             morse = '.';
         }
         //checks the acceleration on the x-axis or y-axis
-        else if(ax > 0.8f || ax < -0.8f){
+        else if(gx < 0.8f){
             morse = '-';
         }
-
+        if (morse != 0) {
+            xQueueSend(morse_buffer, &morse, 0);   
+        }
+        printf("gyro x on %f\n", gx);
         vTaskDelay(pdMS_TO_TICKS(100));
+
     }
 
 }
@@ -78,6 +82,7 @@ void buttonTask(void *arg){
     bool LastButtonstate2 = false; // Define the last button state for button 2
 
     int btn2Count = 0; // counter for consecutive times button 2 has been pressed
+    char morseReceived = 0;
 
     // Creating for loop to loop infinitely to read button presses
     for(;;){
@@ -87,26 +92,32 @@ void buttonTask(void *arg){
 
         // If statement to add dot or dash to string Morsecode
         if (Button1 && !LastButtonstate1) {
-            xQueueSend(output_buffer, &morse, 0);   // sends morse to output buffer upon button press
+            xQueueReceive(morse_buffer, &morseReceived, portMAX_DELAY);
+            xQueueSend(output_buffer, &morseReceived, 0);   // sends morse to output buffer upon button press
             btn2Count = 0;                          // press of button 1 sets count to 0
-            vTaskDelay(pdMS_TO_TICKS(20));          // small 20ms delay to avoid button registering too many times
+            vTaskDelay(pdMS_TO_TICKS(100));          // small 20ms delay to avoid button registering too many time
+            printf("toimii btn1");
         }
 
         if (Button2 && !LastButtonstate2) {
             char space = ' ';
             xQueueSend(output_buffer, &space, 0);   // sends a space to output buffer upon button press
             btn2Count++;                            // press of button 2 adds to counter
-            vTaskDelay(pdMS_TO_TICKS(20));          // small 20ms delay to avoid button registering too many times
+            vTaskDelay(pdMS_TO_TICKS(100));          // small 20ms delay to avoid button registering too many times
+            printf("toimii btn2");
 
             // if statement made to print the morsecode if the last 3 characters are a space (button 2 pressed 3 times in a row)
             if (btn2Count >= 3){  // Checking if button 2 has been pressed 3 times in a row
                 char end = '\n';
                 xQueueSend(output_buffer, &end, 0); // send newline to output buffer to indicate end of current string
                 btn2Count = 0;                      // reset button 2 count
+                printf("toimii btn2 3krt");
             } 
         }
         LastButtonstate1 = Button1; // Sets the Lastbuttonstate to the state of button 1
         LastButtonstate2 = Button2; // Sets the Lastbuttonstate to the state of button 2
+
+        vTaskDelay(pdMS_TO_TICKS(15));
     }
 }
 
@@ -134,6 +145,7 @@ void usbOutputTask(void *arg) {
             printf("%s\n", Morsecode);              // prints finished morse string on a new line
             Morseindexcount = 0;                    // reset index count for next message
             Morsecode[0] = '\0';                    // set first next value in string to '\0' to reset it
+            printf("jee");
         }
         else {
             if (Morseindexcount < sizeof(Morsecode) - 1) {  // avoid adding to string if buffer overflow possible
@@ -152,10 +164,13 @@ int main(void) {
 
     init_ICM42670();                        // IMU WHO_AM_I + basic setup
     ICM42670_startAccel(100, 4);            // 100 Hz, ±4 g
+    ICM42670_startGyro(100, 250);
 
     init_button1();
     init_button2();
+    morse_buffer = xQueueCreate(1, sizeof(char));
     output_buffer = xQueueCreate(32, sizeof(char));
+    
 
     xTaskCreate(
         imuTask,
