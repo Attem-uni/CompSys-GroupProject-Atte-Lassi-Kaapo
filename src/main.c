@@ -27,49 +27,35 @@ QueueHandle_t output_buffer, morse_buffer;
 //https://www.freertos.org/Documentation/02-Kernel/04-API-references/06-Queues/01-xQueueCreate
 
 
-//void init_sw1() {
-//    // Initialize the button pin as an input with a pull-up resistor
-//    gpio_init(SW1_PIN);
-//    gpio_set_dir(SW1_PIN, GPIO_IN);
-//}
-
-//void init_sw2() {
-    // Initialize the button pin as an input with a pull-up resistor
-//    gpio_init(SW2_PIN);
-//    gpio_set_dir(SW2_PIN, GPIO_IN);
-//}
-
-//void init_button1(){
-//    return init_sw1();
-//}
-
-//void init_button2(){
-//    return init_sw2();
-//}
-
+// Code by Lassi
 void imuTask(void *p){
 
-    float gx;
+    float ax, ay, az, gx, gy, gz, t;
     char morse = 0;
 
-    while(1){
-        ICM42670_read_sensor_data (NULL, NULL, NULL, &gx, NULL, NULL, NULL);
-        //checks the acceleration on the z-axis
-        if(gx > 0.8f){
-            morse = '.';
+    if (init_ICM42670() == 0) {
+        printf("ICM-42670P initialized successfully!\n");
+        if (ICM42670_start_with_default_values() != 0){
+            printf("ICM-42670P could not initialize accelerometer or gyroscope");
         }
-        //checks the acceleration on the x-axis or y-axis
-        else if(gx < 0.8f){
-            morse = '-';
-        }
-        if (morse != 0) {
-            xQueueSend(morse_buffer, &morse, 0);   
-        }
-        printf("gyro x on %f\n", gx);
-        vTaskDelay(pdMS_TO_TICKS(100));
-
     }
 
+    while(1)
+        {
+            if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0){
+                if(az >= 0.8f || az <= -0.8f){
+                    morse = '.';
+                }
+                else{
+                    morse = '-';
+                }
+                xQueueSend(morse_buffer, &morse, 0);   
+    
+            printf("gyro z-axis on %f\n", az);
+
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
 }
 
 // Code by Kaapo, modifications by Atte
@@ -163,8 +149,8 @@ int main(void) {
     init_hat_sdk();          // put board in a known state (e.g., RGB off) and start default I2C
 
     init_ICM42670();                        // IMU WHO_AM_I + basic setup
-    ICM42670_startAccel(100, 4);            // 100 Hz, ±4 g
-    ICM42670_startGyro(100, 250);
+    //ICM42670_startAccel(100, 4);            // 100 Hz, ±4 g
+    //ICM42670_startGyro(100, 250);
 
     init_button1();
     init_button2();
@@ -172,12 +158,14 @@ int main(void) {
     output_buffer = xQueueCreate(32, sizeof(char));
     
 
+    TaskHandle_t hIMUTask = NULL;
+
     xTaskCreate(
         imuTask,
         "IMU TASK",
         1024,
         NULL,
-        1,
+        2,
         NULL
     );
 
@@ -187,7 +175,7 @@ int main(void) {
         2048,
         NULL,
         1,
-        NULL
+        &hIMUTask
     );
 
     //xTaskCreate(
