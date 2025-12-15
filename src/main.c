@@ -8,6 +8,7 @@
 #include <task.h>
 
 #include "tkjhat/sdk.h"
+#include "tusb.h"
 
 //Kurssi reposta, ei mitään hajua tarvitaanko
 #define DEFAULT_STACK_SIZE 2048
@@ -28,34 +29,20 @@ QueueHandle_t output_buffer, morse_buffer;
 
 
 // Code by Lassi
-void imuTask(void *p){
-
+static void imuTask(void *p) {
     float ax, ay, az, gx, gy, gz, t;
-    char morse = 0;
 
     if (init_ICM42670() == 0) {
         printf("ICM-42670P initialized successfully!\n");
-        if (ICM42670_start_with_default_values() != 0){
-            printf("ICM-42670P could not initialize accelerometer or gyroscope");
+        if (ICM42670_start_with_default_values() != 0) {
+            printf("ICM-42670P could not initialize accelerometer or gyroscope\n");
         }
     }
 
-    while(1)
-        {
-            if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0){
-                if(az >= 0.8f || az <= -0.8f){
-                    morse = '.';
-                }
-                else{
-                    morse = '-';
-                }
-                xQueueSend(morse_buffer, &morse, 0);   
-    
-            printf("gyro z-axis on %f\n", az);
-
-            }
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
+    while (1) {
+        ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
 }
 
 // Code by Kaapo, modifications by Atte
@@ -68,7 +55,7 @@ void buttonTask(void *arg){
     bool LastButtonstate2 = false; // Define the last button state for button 2
 
     int btn2Count = 0; // counter for consecutive times button 2 has been pressed
-    char morseReceived = 0;
+    float ax, ay, az, gx, gy, gz, t;
 
     // Creating for loop to loop infinitely to read button presses
     for(;;){
@@ -77,27 +64,33 @@ void buttonTask(void *arg){
 
 
         // If statement to add dot or dash to string Morsecode
-        if (Button1 && !LastButtonstate1) {
-            xQueueReceive(morse_buffer, &morseReceived, portMAX_DELAY);
-            xQueueSend(output_buffer, &morseReceived, 0);   // sends morse to output buffer upon button press
-            btn2Count = 0;                          // press of button 1 sets count to 0
-            vTaskDelay(pdMS_TO_TICKS(100));          // small 20ms delay to avoid button registering too many time
-            printf("toimii btn1");
+        if (Button1 && !LastButtonstate1) { // Checks if button1 is pressed
+            if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0) { // Reads sensor data
+                char morse = (ax >= 0.5) ? '.' : '-'; // Assings either . or - to the morse variable
+                printf("Added: %c\n", morse); // Prints to the terminal if . or - has been added
+                if (Morseindexcount < sizeof(Morsecode) - 1) { // Updates the Morsecode string
+                    Morsecode[Morseindexcount++] = morse;
+                    Morsecode[Morseindexcount] = '\0';
+                }
+            }
+            btn2Count = 0;
+            vTaskDelay(pdMS_TO_TICKS(100));
         }
 
+        // If statement to add space to the string Morsecode
         if (Button2 && !LastButtonstate2) {
             char space = ' ';
+            printf("Added: space\n");
             xQueueSend(output_buffer, &space, 0);   // sends a space to output buffer upon button press
             btn2Count++;                            // press of button 2 adds to counter
             vTaskDelay(pdMS_TO_TICKS(100));          // small 20ms delay to avoid button registering too many times
-            printf("toimii btn2");
+        
 
             // if statement made to print the morsecode if the last 3 characters are a space (button 2 pressed 3 times in a row)
             if (btn2Count >= 3){  // Checking if button 2 has been pressed 3 times in a row
                 char end = '\n';
                 xQueueSend(output_buffer, &end, 0); // send newline to output buffer to indicate end of current string
                 btn2Count = 0;                      // reset button 2 count
-                printf("toimii btn2 3krt");
             } 
         }
         LastButtonstate1 = Button1; // Sets the Lastbuttonstate to the state of button 1
@@ -109,13 +102,13 @@ void buttonTask(void *arg){
 
 // ======================
 //Otettu kurssin reposta
-//static void usbTask(void *arg) {
-//    (void)arg;
-//    while (1) {
-//        tud_task();              // With FreeRTOS wait for events
+static void usbTask(void *arg) {
+    (void)arg;
+    while (1) {
+        tud_task();              // With FreeRTOS wait for events
                                  // Do not add vTaskDelay. 
-//    }
-//}
+    }
+}
 // usbOutputTask Code by Atte
 
 void usbOutputTask(void *arg) {
@@ -128,10 +121,9 @@ void usbOutputTask(void *arg) {
 
         if (c == '\n') {        // ends string if newline detected as char c
 
-            printf("%s\n", Morsecode);              // prints finished morse string on a new line
+            printf("Morsecode is: %s\n", Morsecode);              // prints finished morse string on a new line
             Morseindexcount = 0;                    // reset index count for next message
             Morsecode[0] = '\0';                    // set first next value in string to '\0' to reset it
-            printf("jee");
         }
         else {
             if (Morseindexcount < sizeof(Morsecode) - 1) {  // avoid adding to string if buffer overflow possible
@@ -178,14 +170,14 @@ int main(void) {
         &hIMUTask
     );
 
-    //xTaskCreate(
-    //    usbTask,
-    //    "USB Task",
-    //    1024,
-    //    NULL,
-    //    2,                       
-    //    NULL
-    //);
+    xTaskCreate(
+        usbTask,
+        "USB Task",
+        1024,
+        NULL,
+        2,                       
+        NULL
+    );
     xTaskCreate(
         usbOutputTask,
         "USB Output Task",
