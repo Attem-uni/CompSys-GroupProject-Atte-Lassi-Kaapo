@@ -10,25 +10,20 @@
 #include "tkjhat/sdk.h"
 #include "tusb.h"
 
-//Kurssi reposta, ei mitään hajua tarvitaanko
-#define DEFAULT_STACK_SIZE 2048
-#define CDC_ITF_TX      1
+//Every members contribution was equal, so we want to share the points equally.
 
-// Code by Kaapo
+// Code by Kaapo and Lassi
 // ======================
 
 char Morsecode[128]; // Defining the morse code string
 uint8_t Morseindexcount = 0; // Defining the index number for the morse code string
+QueueHandle_t output_buffer;
 
 // ======================
 
-//Nämä on global variables, pitää varmaan lisätä vielä jotaki
-QueueHandle_t output_buffer, morse_buffer;
-//Yllä oleva täältä
-//https://www.freertos.org/Documentation/02-Kernel/04-API-references/06-Queues/01-xQueueCreate
 
 
-// Code by Lassi
+// Code by Lassi and modifications by Kaapo
 static void imuTask(void *p) {
     float ax, ay, az, gx, gy, gz, t;
 
@@ -68,16 +63,14 @@ void buttonTask(void *arg){
             if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0) { // Reads sensor data
                 char morse = (ax >= 0.5) ? '.' : '-'; // Assings either . or - to the morse variable
                 printf("Added: %c\n", morse); // Prints to the terminal if . or - has been added
-                if (Morseindexcount < sizeof(Morsecode) - 1) { // Updates the Morsecode string
-                    Morsecode[Morseindexcount++] = morse;
-                    Morsecode[Morseindexcount] = '\0';
-                }
+
+                xQueueSend(output_buffer, &morse, 0);
             }
             btn2Count = 0;
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
-        // If statement to add space to the string Morsecode
+        // If statement to send space to the output buffer
         if (Button2 && !LastButtonstate2) {
             char space = ' ';
             printf("Added: space\n");
@@ -101,7 +94,7 @@ void buttonTask(void *arg){
 }
 
 // ======================
-//Otettu kurssin reposta
+// Added by Lassi
 static void usbTask(void *arg) {
     (void)arg;
     while (1) {
@@ -135,18 +128,17 @@ void usbOutputTask(void *arg) {
     }
 }
 
+// Code by Atte and Lassi
 int main(void) {
     stdio_init_all();
  
     init_hat_sdk();          // put board in a known state (e.g., RGB off) and start default I2C
 
     init_ICM42670();                        // IMU WHO_AM_I + basic setup
-    //ICM42670_startAccel(100, 4);            // 100 Hz, ±4 g
-    //ICM42670_startGyro(100, 250);
 
     init_button1();
     init_button2();
-    morse_buffer = xQueueCreate(1, sizeof(char));
+
     output_buffer = xQueueCreate(32, sizeof(char));
     
 
